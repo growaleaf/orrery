@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orrery — the clockmaker's bench</title>
+<meta name="description" content="Rebuild a water-damaged clockwork orrery, one gear train at a time. Continued fractions are the craft.">
+<meta property="og:title" content="Orrery">
+<meta property="og:description" content="A water-damaged orrery, 1780. Build gear trains that approximate the heavens — your error becomes visible drift.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2218%22 fill=%22%230b0e17%22/><ellipse cx=%2250%22 cy=%2255%22 rx=%2244%22 ry=%2211%22 fill=%22none%22 stroke=%22%23c9a13b%22 stroke-width=%225%22 transform=%22rotate(-18 50 55)%22/><circle cx=%2250%22 cy=%2248%22 r=%2222%22 fill=%22%23e8c766%22/></svg>">
+<style>
+  :root {
+    --midnight: #0b0e17;
+    --midnight-2: #12172a;
+    --velvet: #1a1024;
+    --brass: #c9a13b;
+    --brass-bright: #e8c766;
+    --brass-dim: #8a6f2a;
+    --parchment: #e9dfc7;
+    --ink: #cfc8b8;
+    --error-red: #a24a3f;
+    --ok-green: #6f9a5e;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background:
+      radial-gradient(ellipse at 50% -10%, #241a3a 0%, var(--velvet) 40%, var(--midnight) 100%);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex;
+    justify-content: center;
+  }
+  #app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100dvh;
+    padding: calc(18px + var(--safe-top)) calc(16px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(16px + var(--safe-left));
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  h1, h2, h3 { font-weight: normal; margin: 0 0 10px; color: var(--brass-bright); letter-spacing: 0.02em; }
+  h1 { font-size: 1.8rem; text-align: center; }
+  h2 { font-size: 1.25rem; }
+  p { line-height: 1.5; margin: 0 0 12px; }
+  .muted { color: #9a917d; font-size: 0.9rem; }
+  .screen { display: none; flex: 1; flex-direction: column; animation: fadein .25s ease; }
+  .screen.active { display: flex; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .btn {
+    display: inline-block;
+    background: linear-gradient(180deg, var(--brass-bright), var(--brass-dim));
+    color: #201406;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 18px;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 2px 0 #5f4a17, 0 4px 10px rgba(0,0,0,0.4);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 0 0 #5f4a17; }
+  .btn.secondary {
+    background: transparent;
+    color: var(--brass);
+    border: 1px solid var(--brass-dim);
+    box-shadow: none;
+  }
+  .btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+  .card {
+    background: rgba(20, 16, 32, 0.6);
+    border: 1px solid rgba(201,161,59,0.25);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  #title-screen { justify-content: center; align-items: center; text-align: center; }
+  .orrery-mark { width: 64px; height: 64px; margin-bottom: 6px; }
+  .tagline { max-width: 340px; color: var(--parchment); font-style: italic; }
+
+  .top-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .commission-index { color: var(--brass-dim); font-size: 0.85rem; }
+
+  #dialCanvas { width: 100%; display: block; touch-action: manipulation; }
+  .canvas-wrap { border: 1px solid rgba(201,161,59,0.2); border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.25); margin-bottom: 12px; }
+
+  .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .gear-chip {
+    background: radial-gradient(circle at 35% 30%, #3a3020, #1c1610);
+    border: 2px solid var(--brass-dim);
+    border-radius: 50%;
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--brass-bright);
+    font-size: 0.95rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gear-chip.used { opacity: 0.25; cursor: default; }
+  .gear-chip.selected { border-color: var(--ok-green); box-shadow: 0 0 0 2px var(--ok-green) inset; }
+
+  .train-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 40px; margin-bottom: 10px; }
+  .train-tooth { background: rgba(201,161,59,0.15); border: 1px solid var(--brass-dim); border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; }
+  .train-sep { color: var(--brass-dim); }
+
+  .verdict-pass { color: var(--ok-green); }
+  .verdict-fail { color: var(--error-red); }
+
+  .hint-text { font-style: italic; color: var(--brass); font-size: 0.9rem; }
+
+  footer.nav { margin-top: auto; display: flex; justify-content: space-between; gap: 10px; padding-top: 14px; }
+
+  a { color: var(--brass); }
+
+  ::selection { background: var(--brass); color: #1a1024; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <section id="title-screen" class="screen active">
+    <svg class="orrery-mark" viewBox="0 0 100 100" aria-hidden="true">
+      <ellipse cx="50" cy="55" rx="44" ry="11" fill="none" stroke="#c9a13b" stroke-width="5" transform="rotate(-18 50 55)"/>
+      <circle cx="50" cy="48" r="22" fill="#e8c766"/>
+    </svg>
+    <h1>ORRERY</h1>
+    <p class="tagline">A water-damaged clockwork solar system has arrived at your bench. 1780. Its gears are lost. Only its numbers remain — and the sky doesn't wait for you to guess.</p>
+    <div class="btn-row">
+      <button class="btn" id="btn-start">Sit at the bench</button>
+      <button class="btn secondary" id="btn-howto">How the trade works</button>
+    </div>
+    <p class="muted" style="margin-top:18px">Real gear ratios. Real continued fractions. No two commissions solved the same way twice.</p>
+  </section>
+
+  <section id="howto-screen" class="screen">
+    <h2>How the trade works</h2>
+    <div class="card">
+      <p><strong>Every commission gives you a target</strong> — a number of days. The Moon's phase repeats every 29.5306 days. The Earth's year is 365.2422. You must build a train of gears whose ratio matches that number.</p>
+    </div>
+    <div class="card">
+      <p><strong>A train is gears in meshing pairs.</strong> Tap a gear to make it the driver, tap a second to make it driven — that's one pair, contributing its tooth ratio (driven ÷ driver) to the train. Chain more pairs and their ratios multiply.</p>
+    </div>
+    <div class="card">
+      <p><strong>No single pair reaches far.</strong> Teeth run 8 to 120 — one pair tops out around 15-to-1. To reach 365, you'll need to chain pairs, the same way a clockmaker really did it: build the ratio in stages, each stage a rational approximation closer than the last. That staged approximation has a name — a continued fraction — and it is the entire craft.</p>
+    </div>
+    <div class="card">
+      <p><strong>Spin it ten years</strong> and watch the drift. A gear train slightly wrong doesn't fail loudly — it just runs a little fast or slow, and after years, the Moon on your dial is full a day before the real one. Get inside the tolerance and the clockmaker bows. Use more gears than you needed, and the work is sound, but not admired.</p>
+    </div>
+    <footer class="nav">
+      <button class="btn secondary" id="btn-howto-back">Back</button>
+      <button class="btn" id="btn-howto-start">To the bench</button>
+    </footer>
+  </section>
+
+  <section id="bench-screen" class="screen">
+    <div class="top-bar">
+      <h2 id="commission-name">—</h2>
+      <span class="commission-index" id="commission-index">1 / 12</span>
+    </div>
+    <p class="muted" id="commission-target">target —</p>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <span>Train ratio</span>
+        <span id="train-ratio">—</span>
+      </div>
+      <div class="train-strip" id="train-strip"></div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-clear-train">Clear train</button>
+        <button class="btn secondary" id="btn-hint">Ask the apprentice</button>
+      </div>
+      <p class="hint-text" id="hint-text" style="display:none"></p>
+    </div>
+
+    <h3>Stock</h3>
+    <div class="stock-grid" id="stock-grid"></div>
+
+    <footer class="nav">
+      <button class="btn secondary" id="btn-bench-back">Bench index</button>
+      <button class="btn" id="btn-spin" disabled>Spin ten years</button>
+    </footer>
+  </section>
+
+  <section id="spin-screen" class="screen">
+    <h2 id="spin-title">Spinning the years…</h2>
+    <div class="canvas-wrap">
+      <canvas id="dialCanvas" width="448" height="320"></canvas>
+    </div>
+    <div class="card" id="verdict-card" style="display:none">
+      <p id="verdict-verdict" style="font-size:1.1rem"></p>
+      <p id="verdict-drift" class="muted"></p>
+      <p id="verdict-score" class="muted"></p>
+    </div>
+    <footer class="nav">
+      <button class="btn secondary" id="btn-spin-retry" style="display:none">Try again</button>
+      <button class="btn" id="btn-spin-next" style="display:none">Next commission</button>
+    </footer>
+  </section>
+
+  <section id="complete-screen" class="screen">
+    <h2>The bench is finished</h2>
+    <div class="card">
+      <p id="complete-summary"></p>
+    </div>
+    <div class="card">
+      <p class="muted">Share the work:</p>
+      <p id="share-text" style="user-select:all"></p>
+      <button class="btn secondary" id="btn-copy-share">Copy</button>
+    </div>
+    <footer class="nav">
+      <button class="btn secondary" id="btn-complete-restart">Start a new bench</button>
+    </footer>
+  </section>
+
+</div>
+<script type="module" src="game.js"></script>
+</body>
+</html>
